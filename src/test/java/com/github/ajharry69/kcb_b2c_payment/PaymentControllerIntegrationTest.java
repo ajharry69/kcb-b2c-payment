@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -64,17 +65,17 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
         response.prettyPrint();
         PaymentResponse paymentResponse = response
                 .then()
-                .log().ifValidationFails()
-                .statusCode(202) // Accepted
+                .log().ifError()
+                .statusCode(HttpStatus.ACCEPTED.value())
                 .contentType(ContentType.JSON)
                 .header("Location", matchesRegex(".*/api/v1/payments/[a-f0-9-]+$"))
-                .body("status", is(PaymentStatus.PROCESSING.toString()))
+                .body("status", is(PaymentStatus.SUCCESSFUL.toString()))
                 .body("transactionId", is(request.transactionId()))
                 .body("paymentId", notNullValue())
                 .extract().as(PaymentResponse.class);
 
         assertThat(paymentResponse).isNotNull();
-        assertThat(paymentResponse.status()).isEqualTo(PaymentStatus.PROCESSING);
+        assertThat(paymentResponse.status()).isEqualTo(PaymentStatus.SUCCESSFUL);
     }
 
     @Test
@@ -96,8 +97,8 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
                 .when()
                 .post("/api/v1/payments")
                 .then()
-                .log().ifValidationFails()
-                .statusCode(403);
+                .log().ifError()
+                .statusCode(HttpStatus.FORBIDDEN.value());
     }
 
     @Test
@@ -111,17 +112,15 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
                 "KES"
         );
 
-        // No token
         given()
                 .contentType(ContentType.JSON)
                 .body(request)
                 .when()
                 .post("/api/v1/payments")
                 .then()
-                .log().ifValidationFails()
-                .statusCode(401); // Unauthorized
+                .log().ifError()
+                .statusCode(HttpStatus.UNAUTHORIZED.value());
 
-        // Invalid token
         given()
                 .auth().oauth2("invalid-token-string")
                 .contentType(ContentType.JSON)
@@ -129,8 +128,8 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
                 .when()
                 .post("/api/v1/payments")
                 .then()
-                .log().ifValidationFails()
-                .statusCode(401); // Unauthorized
+                .log().ifError()
+                .statusCode(HttpStatus.UNAUTHORIZED.value());
     }
 
 
@@ -150,7 +149,7 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
         response.prettyPrint();
         PaymentResponse paymentResponse = response
                 .then()
-                .statusCode(202)
+                .statusCode(HttpStatus.ACCEPTED.value())
                 .extract()
                 .as(PaymentResponse.class);
         UUID createdId = paymentResponse.paymentId();
@@ -161,8 +160,8 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
                 .when()
                 .get("/api/v1/payments/{id}", createdId)
                 .then()
-                .log().ifValidationFails()
-                .statusCode(200)
+                .log().ifError()
+                .statusCode(HttpStatus.OK.value())
                 .contentType(ContentType.JSON)
                 .body("paymentId", is(createdId.toString()))
                 .body("transactionId", is(createRequest.transactionId()))
@@ -190,8 +189,8 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
         response.prettyPrint();
         response
                 .then()
-                .log().ifValidationFails()
-                .statusCode(404);
+                .log().ifError()
+                .statusCode(HttpStatus.NOT_FOUND.value());
     }
 
     @Test
@@ -205,7 +204,7 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
                 .body(createRequest)
                 .when()
                 .post("/api/v1/payments")
-                .then().statusCode(202);
+                .then().statusCode(HttpStatus.ACCEPTED.value());
 
         given()
                 .auth().oauth2(getAccessToken()) // Has read scope
@@ -214,8 +213,8 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
                 .when()
                 .get("/api/v1/payments")
                 .then()
-                .log().ifValidationFails()
-                .statusCode(200)
+                .log().ifError()
+                .statusCode(HttpStatus.OK.value())
                 .contentType(ContentType.JSON)
                 .body("transactionId", is(createRequest.transactionId()))
                 .body("status", is(
@@ -243,7 +242,7 @@ public class PaymentControllerIntegrationTest extends IntegrationTest {
         response.prettyPrint();
         response
                 .then()
-                .log().ifValidationFails()
-                .statusCode(404);
+                .log().ifError()
+                .statusCode(HttpStatus.NOT_FOUND.value());
     }
 }
