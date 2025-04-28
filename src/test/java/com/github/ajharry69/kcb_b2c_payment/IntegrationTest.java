@@ -1,6 +1,5 @@
-package com.github.ajharry69.kcb_b2c_payment.utils;
+package com.github.ajharry69.kcb_b2c_payment;
 
-import dasniko.testcontainers.keycloak.KeycloakContainer;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
@@ -9,56 +8,24 @@ import org.slf4j.LoggerFactory;
 
 import static io.restassured.RestAssured.given;
 
-public final class KeycloakTestContainer {
-
-    private static final Logger log = LoggerFactory.getLogger(KeycloakTestContainer.class);
-    private static final String KEYCLOAK_IMAGE = "quay.io/keycloak/keycloak:24.0.4";
-    private static final String REALM_EXPORT_PATH = "realm.json";
-    private static final String REALM_NAME = "test-realm";
+public abstract class IntegrationTest {
+    private static final Logger log = LoggerFactory.getLogger(IntegrationTest.class);
     private static final String TEST_CLIENT_ID = "test-client";
     private static final String TEST_CLIENT_SECRET = "test-secret";
-    private static KeycloakContainer keycloakContainer;
 
-    private KeycloakTestContainer() {
+    protected String getAdminAccessToken() {
+        return getAccessToken("adminuser", "adminpass");
     }
 
-    public static synchronized KeycloakContainer getInstance() {
-        if (keycloakContainer == null) {
-            log.info("Starting Keycloak Testcontainer...");
-            try {
-                keycloakContainer = new KeycloakContainer(KEYCLOAK_IMAGE)
-                        .withRealmImportFile(REALM_EXPORT_PATH)
-                        .withReuse(true);
-
-                keycloakContainer.start();
-
-                // Optional: Add shutdown hook to stop the container gracefully
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    if (keycloakContainer != null && keycloakContainer.isRunning()) {
-                        log.info("Stopping Keycloak Testcontainer...");
-                        keycloakContainer.stop();
-                        log.info("Keycloak Testcontainer stopped.");
-                    }
-                }));
-
-            } catch (Exception e) {
-                log.error("!!! Failed to start Keycloak Testcontainer !!!", e);
-                throw new RuntimeException("Failed to initialize Keycloak Testcontainer", e);
-            }
-        }
-        return keycloakContainer;
+    protected String getAccessToken() {
+        return getAccessToken("testuser", "password");
     }
 
-    public static String getIssuerUri() {
-        return String.format("%s/realms/%s", getInstance().getAuthServerUrl(), REALM_NAME);
-    }
-
-    public static String getAccessToken(String username, String password) {
+    protected String getAccessToken(String username, String password) {
         String tokenEndpoint = "http://localhost:8180/realms/test-realm/protocol/openid-connect/token";
         log.debug("Requesting access token for user '{}', client '{}' from endpoint: {}", username, TEST_CLIENT_ID, tokenEndpoint);
 
         try {
-            // Use RestAssured to make the POST request for the token
             RequestSpecification requestSpecification = given()
                     .contentType(ContentType.URLENC)
                     .formParam("grant_type", "password")
@@ -66,7 +33,7 @@ public final class KeycloakTestContainer {
                     .formParam("client_secret", TEST_CLIENT_SECRET)
                     .formParam("username", username)
                     .formParam("password", password)
-                    .formParam("scope", "openid");
+                    .formParam("scope", "openid payment.initiate payment.read");
             requestSpecification.log();
             Response response = requestSpecification
                     .when()

@@ -4,18 +4,15 @@ import com.github.ajharry69.kcb_b2c_payment.payment.PaymentRepository;
 import com.github.ajharry69.kcb_b2c_payment.payment.dto.PaymentRequest;
 import com.github.ajharry69.kcb_b2c_payment.payment.dto.PaymentResponse;
 import com.github.ajharry69.kcb_b2c_payment.payment.model.PaymentStatus;
-import com.github.ajharry69.kcb_b2c_payment.utils.KeycloakTestContainer;
-import dasniko.testcontainers.keycloak.KeycloakContainer;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.context.annotation.Import;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -25,38 +22,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 
 
+@Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class PaymentControllerIntegrationTest {
-    /*@Container
-    private static final KeycloakContainer keycloak = KeycloakTestContainer.getInstance();*/
-    private static String accessTokenUser;
-    private static String accessTokenAdmin;
+public class PaymentControllerIntegrationTest extends IntegrationTest {
     @LocalServerPort
     private int port;
     @Autowired
     private PaymentRepository paymentRepository;
 
-    /*@DynamicPropertySource
-    static void registerResourceServerIssuerProperty(DynamicPropertyRegistry registry) {
-        final String issuerUri = KeycloakTestContainer.getIssuerUri();
-        registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", () -> issuerUri);
-        registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> issuerUri + "/protocol/openid-connect/certs");
-    }*/
-
-    @BeforeAll
-    static void beforeAll() {
-        accessTokenUser = KeycloakTestContainer.getAccessToken("testuser", "password");
-        accessTokenAdmin = KeycloakTestContainer.getAccessToken("adminuser", "adminpass");
-        assertThat(accessTokenUser).isNotBlank();
-        assertThat(accessTokenAdmin).isNotBlank();
-    }
-
-
     @BeforeEach
     void setUp() {
-        RestAssured.baseURI = "http://localhost";
         RestAssured.port = port;
         paymentRepository.deleteAll();
     }
@@ -77,12 +53,16 @@ public class PaymentControllerIntegrationTest {
                 "KES"
         );
 
-        PaymentResponse response = given()
-                .auth().oauth2(accessTokenAdmin)
+        RequestSpecification requestSpecification = given()
+                .auth().oauth2(getAdminAccessToken())
                 .contentType(ContentType.JSON)
-                .body(request)
+                .body(request);
+        requestSpecification.log();
+        Response response = requestSpecification
                 .when()
-                .post("/api/v1/payments")
+                .post("/api/v1/payments");
+        response.prettyPrint();
+        PaymentResponse paymentResponse = response
                 .then()
                 .log().ifValidationFails()
                 .statusCode(202) // Accepted
@@ -93,8 +73,8 @@ public class PaymentControllerIntegrationTest {
                 .body("paymentId", notNullValue())
                 .extract().as(PaymentResponse.class);
 
-        assertThat(response).isNotNull();
-        assertThat(response.status()).isEqualTo(PaymentStatus.PROCESSING);
+        assertThat(paymentResponse).isNotNull();
+        assertThat(paymentResponse.status()).isEqualTo(PaymentStatus.PROCESSING);
     }
 
     @Test
@@ -110,7 +90,7 @@ public class PaymentControllerIntegrationTest {
         );
 
         given()
-                .auth().oauth2(accessTokenUser) // Use user token (lacks initiate scope)
+                .auth().oauth2(getAccessToken()) // Use user token (lacks initiate scope)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .when()
@@ -159,17 +139,24 @@ public class PaymentControllerIntegrationTest {
     @DisplayName("GET /payments/{id} - Success (200 OK) with valid token")
     void getPaymentById_Success() {
         PaymentRequest createRequest = new PaymentRequest("ITEST-TXN-GET-01", "+254733111000", new BigDecimal("99.99"), "KES");
-        PaymentResponse createdResponse = given()
-                .auth().oauth2(accessTokenAdmin)
+        RequestSpecification requestSpecification = given()
+                .auth().oauth2(getAdminAccessToken())
                 .contentType(ContentType.JSON)
-                .body(createRequest)
+                .body(createRequest);
+        requestSpecification.log();
+        Response response = requestSpecification
                 .when()
-                .post("/api/v1/payments")
-                .then().statusCode(202).extract().as(PaymentResponse.class);
-        UUID createdId = createdResponse.paymentId();
+                .post("/api/v1/payments");
+        response.prettyPrint();
+        PaymentResponse paymentResponse = response
+                .then()
+                .statusCode(202)
+                .extract()
+                .as(PaymentResponse.class);
+        UUID createdId = paymentResponse.paymentId();
 
         given()
-                .auth().oauth2(accessTokenUser) // Use user token (has read scope)
+                .auth().oauth2(getAccessToken()) // Use user token (has read scope)
                 .accept(ContentType.JSON)
                 .when()
                 .get("/api/v1/payments/{id}", createdId)
@@ -193,11 +180,15 @@ public class PaymentControllerIntegrationTest {
     @DisplayName("GET /payments/{id} - Not Found (404)")
     void getPaymentById_NotFound() {
         UUID nonExistentId = UUID.randomUUID();
-        given()
-                .auth().oauth2(accessTokenAdmin) // Has read scope
-                .accept(ContentType.JSON)
+        RequestSpecification requestSpecification = given()
+                .auth().oauth2(getAdminAccessToken()) // Has read scope
+                .accept(ContentType.JSON);
+        requestSpecification.log();
+        Response response = requestSpecification
                 .when()
-                .get("/api/v1/payments/{id}", nonExistentId)
+                .get("/api/v1/payments/{id}", nonExistentId);
+        response.prettyPrint();
+        response
                 .then()
                 .log().ifValidationFails()
                 .statusCode(404);
@@ -209,7 +200,7 @@ public class PaymentControllerIntegrationTest {
     void getPaymentByTransactionId_Success() {
         PaymentRequest createRequest = new PaymentRequest("ITEST-TXN-GET-02", "+254733222111", new BigDecimal("150.00"), "KES");
         given()
-                .auth().oauth2(accessTokenAdmin)
+                .auth().oauth2(getAdminAccessToken())
                 .contentType(ContentType.JSON)
                 .body(createRequest)
                 .when()
@@ -217,7 +208,7 @@ public class PaymentControllerIntegrationTest {
                 .then().statusCode(202);
 
         given()
-                .auth().oauth2(accessTokenUser) // Has read scope
+                .auth().oauth2(getAccessToken()) // Has read scope
                 .accept(ContentType.JSON)
                 .param("transactionId", createRequest.transactionId())
                 .when()
@@ -241,12 +232,16 @@ public class PaymentControllerIntegrationTest {
     @DisplayName("GET /payments?transactionId={txnId} - Not Found (404)")
     void getPaymentByTransactionId_NotFound() {
         String nonExistentTxnId = "TXN_DOES_NOT_EXIST";
-        given()
-                .auth().oauth2(accessTokenAdmin) // Has read scope
+        RequestSpecification requestSpecification = given()
+                .auth().oauth2(getAdminAccessToken()) // Has read scope
                 .accept(ContentType.JSON)
-                .param("transactionId", nonExistentTxnId)
+                .param("transactionId", nonExistentTxnId);
+        requestSpecification.log();
+        Response response = requestSpecification
                 .when()
-                .get("/api/v1/payments")
+                .get("/api/v1/payments");
+        response.prettyPrint();
+        response
                 .then()
                 .log().ifValidationFails()
                 .statusCode(404);

@@ -51,7 +51,8 @@
       "clientRoles": {
       },
       "realmRoles": [
-        "default-roles-test-realm"
+        "default-roles-test-realm",
+        "USER"
       ],
       "groups": []
     },
