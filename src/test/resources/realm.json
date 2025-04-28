@@ -13,6 +13,7 @@
       "standardFlowEnabled": true,
       "protocol": "openid-connect",
       "defaultClientScopes": [
+        "openid",
         "email",
         "profile",
         "roles",
@@ -56,6 +57,9 @@
     },
     {
       "username": "adminuser",
+      "firstName": "Admin",
+      "lastName": "User",
+      "email": "adminuser@example.com",
       "enabled": true,
       "credentials": [
         {

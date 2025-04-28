@@ -2,6 +2,8 @@ package com.github.ajharry69.kcb_b2c_payment.utils;
 
 import dasniko.testcontainers.keycloak.KeycloakContainer;
 import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,21 +54,25 @@ public final class KeycloakTestContainer {
     }
 
     public static String getAccessToken(String username, String password) {
-        String tokenEndpoint = getIssuerUri() + "/protocol/openid-connect/token";
+        String tokenEndpoint = "http://localhost:8180/realms/test-realm/protocol/openid-connect/token";
         log.debug("Requesting access token for user '{}', client '{}' from endpoint: {}", username, TEST_CLIENT_ID, tokenEndpoint);
 
         try {
             // Use RestAssured to make the POST request for the token
-            String accessToken = given()
+            RequestSpecification requestSpecification = given()
                     .contentType(ContentType.URLENC)
                     .formParam("grant_type", "password")
                     .formParam("client_id", TEST_CLIENT_ID)
                     .formParam("client_secret", TEST_CLIENT_SECRET)
                     .formParam("username", username)
                     .formParam("password", password)
-                    .formParam("scope", "openid email profile")
+                    .formParam("scope", "openid");
+            requestSpecification.log();
+            Response response = requestSpecification
                     .when()
-                    .post(tokenEndpoint)
+                    .post(tokenEndpoint);
+            response.prettyPrint();
+            String accessToken = response
                     .then()
                     .log().ifValidationFails()
                     .statusCode(200)
