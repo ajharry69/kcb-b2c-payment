@@ -30,9 +30,6 @@ val mapstructVersion = "1.5.5.Final"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
-	implementation("org.springframework.boot:spring-boot-starter-amqp")
-	implementation("org.springframework.boot:spring-boot-starter-batch")
-	implementation("org.springframework.boot:spring-boot-starter-cache")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 	implementation("org.springframework.boot:spring-boot-starter-security")
@@ -42,7 +39,6 @@ dependencies {
 	implementation("org.flywaydb:flyway-core")
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
-//	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 	runtimeOnly("com.h2database:h2")
 	annotationProcessor("org.projectlombok:lombok")
 
@@ -55,26 +51,20 @@ dependencies {
         exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
     }
 	testImplementation("org.springframework.boot:spring-boot-testcontainers")
-	testImplementation("org.springframework.amqp:spring-rabbit-test")
 	testImplementation("org.springframework.batch:spring-batch-test")
 	testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
 	testImplementation("org.springframework.security:spring-security-test")
 	testImplementation("org.testcontainers:junit-jupiter")
-	testImplementation("org.testcontainers:rabbitmq")
 	testImplementation("io.rest-assured:rest-assured:5.3.2")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testImplementation("com.github.dasniko:testcontainers-keycloak:3.4.0")
 	// Required for Keycloak container if not pulled transitively
 	testImplementation("org.keycloak:keycloak-admin-client:24.0.4")
-	testImplementation("org.jboss.resteasy:resteasy-client:6.2.8.Final") // Check compatibility
-	testImplementation("org.jboss.resteasy:resteasy-jackson2-provider:6.2.8.Final") // Check compatibility
 }
 
 tasks.withType<Test> {
 	useJUnitPlatform()
-	// Ensure tests run after Keycloak container starts if needed,
-	// although Testcontainers JUnit 5 extension handles this.
-	systemProperty("spring.profiles.active", "test") // Activate test profile
+	systemProperty("spring.profiles.active", "test")
 }
 
 tasks.test {
