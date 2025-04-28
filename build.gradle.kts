@@ -72,6 +72,9 @@ dependencies {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// Ensure tests run after Keycloak container starts if needed,
+	// although Testcontainers JUnit 5 extension handles this.
+	systemProperty("spring.profiles.active", "test") // Activate test profile
 }
 
 tasks.test {
