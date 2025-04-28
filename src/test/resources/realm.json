@@ -1,6 +1,7 @@
 {
   "realm": "test-realm",
   "enabled": true,
+  "registrationAllowed": true,
   "clients": [
     {
       "clientId": "test-client",
@@ -11,23 +12,34 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": true,
       "protocol": "openid-connect",
-      "defaultClientScopes": ["email", "profile", "roles", "web-origins"],
-      "optionalClientScopes": ["payment.initiate", "payment.read", "offline_access"],
-      "authorizationServicesEnabled": true,
-      "serviceAccountRoles": {
-        "realm": ["offline_access"],
-        "client": {
-          "realm-management": ["query-users", "view-realm"]
-        }
-      },
+      "defaultClientScopes": [
+        "email",
+        "profile",
+        "roles",
+        "web-origins"
+      ],
+      "optionalClientScopes": [
+        "payment.initiate",
+        "payment.read",
+        "offline_access"
+      ],
       "attributes": {
         "access.token.lifespan": "300"
-      }
+      },
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ]
     }
   ],
   "users": [
     {
       "username": "testuser",
+      "firstName": "Test",
+      "lastName": "User",
+      "email": "testuser@example.com",
       "enabled": true,
       "credentials": [
         {
@@ -60,8 +72,14 @@
   ],
   "roles": {
     "realm": [
-      { "name": "ADMIN", "description": "Administrator role" },
-      { "name": "USER", "description": "Regular user role" }
+      {
+        "name": "ADMIN",
+        "description": "Administrator role"
+      },
+      {
+        "name": "USER",
+        "description": "Regular user role"
+      }
     ],
     "client": {
     }
@@ -89,11 +107,16 @@
   "scopeMappings": [
     {
       "clientScope": "payment.initiate",
-      "roles": ["ADMIN"]
+      "roles": [
+        "ADMIN"
+      ]
     },
     {
       "clientScope": "payment.read",
-      "roles": ["ADMIN", "USER"]
+      "roles": [
+        "ADMIN",
+        "USER"
+      ]
     }
   ]
 }
