@@ -3,7 +3,7 @@ WORKDIR /app
 COPY . .
 RUN ./gradlew clean build --exclude-task test
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:24-jre-alpine
 LABEL org.opencontainers.image.source="https://github.com/ajharry69/kcb-b2c-payment"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 

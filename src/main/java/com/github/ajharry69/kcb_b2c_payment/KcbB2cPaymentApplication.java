@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class KcbB2cPaymentApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(KcbB2cPaymentApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(KcbB2cPaymentApplication.class, args);
+    }
 
 }

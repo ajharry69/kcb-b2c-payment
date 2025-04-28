@@ -1,0 +1,99 @@
+{
+  "realm": "test-realm",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "test-client",
+      "secret": "test-secret",
+      "enabled": true,
+      "publicClient": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": true,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["email", "profile", "roles", "web-origins"],
+      "optionalClientScopes": ["payment.initiate", "payment.read", "offline_access"],
+      "authorizationServicesEnabled": true,
+      "serviceAccountRoles": {
+        "realm": ["offline_access"],
+        "client": {
+          "realm-management": ["query-users", "view-realm"]
+        }
+      },
+      "attributes": {
+        "access.token.lifespan": "300"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password"
+        }
+      ],
+      "clientRoles": {
+      },
+      "realmRoles": [
+        "default-roles-test-realm"
+      ],
+      "groups": []
+    },
+    {
+      "username": "adminuser",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "adminpass"
+        }
+      ],
+      "realmRoles": [
+        "default-roles-test-realm",
+        "ADMIN"
+      ],
+      "groups": []
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Administrator role" },
+      { "name": "USER", "description": "Regular user role" }
+    ],
+    "client": {
+    }
+  },
+  "clientScopes": [
+    {
+      "name": "payment.initiate",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Initiate Payments"
+      }
+    },
+    {
+      "name": "payment.read",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Read Payment Status"
+      }
+    }
+  ],
+  "scopeMappings": [
+    {
+      "clientScope": "payment.initiate",
+      "roles": ["ADMIN"]
+    },
+    {
+      "clientScope": "payment.read",
+      "roles": ["ADMIN", "USER"]
+    }
+  ]
+}

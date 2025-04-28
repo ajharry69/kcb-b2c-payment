@@ -34,7 +34,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-batch")
 	implementation("org.springframework.boot:spring-boot-starter-cache")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-	implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
+	implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-web")
@@ -63,6 +63,11 @@ dependencies {
 	testImplementation("org.testcontainers:rabbitmq")
 	testImplementation("io.rest-assured:rest-assured:5.3.2")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	testImplementation("com.github.dasniko:testcontainers-keycloak:3.4.0")
+	// Required for Keycloak container if not pulled transitively
+	testImplementation("org.keycloak:keycloak-admin-client:24.0.4")
+	testImplementation("org.jboss.resteasy:resteasy-client:6.2.8.Final") // Check compatibility
+	testImplementation("org.jboss.resteasy:resteasy-jackson2-provider:6.2.8.Final") // Check compatibility
 }
 
 tasks.withType<Test> {
