@@ -1,12 +1,13 @@
 package com.github.ajharry69.kcb_b2c_payment.payment.dto;
 
 import com.github.ajharry69.kcb_b2c_payment.payment.model.PaymentStatus;
+import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-
+@Builder
 public record PaymentResponse(
         UUID paymentId, // Internal system ID
         String transactionId, // Client-provided ID

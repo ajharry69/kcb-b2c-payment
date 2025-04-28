@@ -1,5 +1,6 @@
 package com.github.ajharry69.kcb_b2c_payment.payment;
 
+import com.github.ajharry69.kcb_b2c_payment.AsyncConfig;
 import com.github.ajharry69.kcb_b2c_payment.exceptions.DuplicateTransactionException;
 import com.github.ajharry69.kcb_b2c_payment.exceptions.MMOServiceException;
 import com.github.ajharry69.kcb_b2c_payment.exceptions.PaymentNotFoundException;
@@ -12,27 +13,26 @@ import com.github.ajharry69.kcb_b2c_payment.payment.model.PaymentStatus;
 import com.github.ajharry69.kcb_b2c_payment.payment.utils.PaymentMapper;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+
 
 @Service
 @Validated
 @Slf4j
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final MobileMoneyService mobileMoneyService;
     private final SmsService smsService;
     private final PaymentMapper paymentMapper;
-    private final Executor asyncExecutor = Executors.newCachedThreadPool(); // TODO: Configure properly as a Spring bean
 
     @Transactional
     public PaymentResponse initiatePayment(@Valid PaymentRequest paymentRequest) {
@@ -51,7 +51,6 @@ public class PaymentService {
         }
 
         Payment newPayment = paymentMapper.toEntity(paymentRequest);
-        newPayment.setStatus(PaymentStatus.PENDING);
 
         Payment savedPayment = paymentRepository.saveAndFlush(newPayment);
         log.debug("Saved initial payment record with ID: {} and status: {}", savedPayment.getId(), savedPayment.getStatus());
@@ -61,32 +60,55 @@ public class PaymentService {
         log.info("Payment status updated to PROCESSING for ID: {}", processingPayment.getId());
 
         try {
-            CompletableFuture<Payment> mnoFuture = mobileMoneyService.processB2CPayment(processingPayment);
-            mnoFuture.handleAsync((updatedPayment, ex) -> {
-                if (ex != null) {
-                    log.error("MNO processing failed exceptionally for paymentId: {}. Cause: {}", processingPayment.getId(), ex.getMessage(), ex);
-                    handleMnoProcessingFailure(processingPayment.getId(), "MNO communication error: " + ex.getMessage());
-                } else if (updatedPayment != null) {
-                    log.info("MNO processing completed for paymentId: {} with status: {}", updatedPayment.getId(), updatedPayment.getStatus());
-                    handleMnoProcessingCompletion(updatedPayment);
-                } else {
-                    log.error("MNO processing returned null result for paymentId: {}", processingPayment.getId());
-                    handleMnoProcessingFailure(processingPayment.getId(), "MNO service returned null result");
-                }
-                return null;
-            }, asyncExecutor);
-
+            processPaymentAsynchronously(processingPayment.getId());
+            log.info("Successfully triggered async MNO processing for payment ID: {}", processingPayment.getId());
         } catch (Exception e) {
-            log.error("Failed to initiate MNO processing for paymentId: {}. Rolling back status to FAILED.", processingPayment.getId(), e);
+            log.error("Failed to submit MNO processing task for paymentId: {}. Rolling back status to FAILED.", processingPayment.getId(), e);
             processingPayment.setStatus(PaymentStatus.FAILED);
-            processingPayment.setFailureReason("Failed to initiate MNO request: " + e.getMessage());
+            processingPayment.setFailureReason("Failed to initiate async MNO task: " + e.getMessage());
             paymentRepository.save(processingPayment);
-            throw new MMOServiceException("Failed to submit payment to MNO: " + e.getMessage(), e);
+            throw new MMOServiceException("Failed to submit payment processing task: " + e.getMessage(), e);
         }
 
         log.info("Successfully initiated payment processing for transactionId: {}. Current status: {}",
                 processingPayment.getTransactionId(), processingPayment.getStatus());
         return paymentMapper.toResponse(processingPayment);
+    }
+
+    @Async(AsyncConfig.MNO_TASK_EXECUTOR)
+    @Transactional
+    public void processPaymentAsynchronously(UUID paymentId) {
+        log.info("Starting async MNO processing for payment ID: {} [Thread: {}]", paymentId, Thread.currentThread().getName());
+
+        Payment paymentToProcess = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> {
+                    // This case should be rare if called correctly after initial save
+                    log.error("Payment record not found for ID {} in async MNO processing task.", paymentId);
+                    return new PaymentNotFoundException(paymentId);
+                });
+
+        if (paymentToProcess.getStatus() != PaymentStatus.PROCESSING) {
+            log.warn("Async MNO processing for payment ID {} skipped: Status is already {}.", paymentId, paymentToProcess.getStatus());
+            return;
+        }
+
+        try {
+            CompletableFuture<Payment> mnoFuture = mobileMoneyService.processB2CPayment(paymentToProcess);
+            Payment updatedPaymentResult = mnoFuture.join();
+
+            log.info(
+                    "MNO processing completed for paymentId: {} with status: {}",
+                    updatedPaymentResult.getId(),
+                    updatedPaymentResult.getStatus());
+            handleMnoProcessingCompletion(updatedPaymentResult);
+        } catch (Exception ex) {
+            log.error(
+                    "MNO processing failed exceptionally during async task for paymentId: {}. Cause: {}",
+                    paymentId,
+                    ex.getMessage(),
+                    ex);
+            handleMnoProcessingFailure(paymentId, "MNO communication error: " + ex.getMessage());
+        }
     }
 
     public PaymentResponse getPaymentById(UUID paymentId) {
@@ -105,17 +127,17 @@ public class PaymentService {
         return paymentMapper.toResponse(payment);
     }
 
-    @Transactional
     protected void handleMnoProcessingCompletion(Payment payment) {
-        Optional<Payment> paymentOpt = paymentRepository.findById(payment.getId());
-        if (paymentOpt.isEmpty()) {
+        Payment paymentToUpdate = paymentRepository.findById(payment.getId())
+                .orElse(null);
+
+        if (paymentToUpdate == null) {
             log.error("Payment record not found for ID {} during MNO completion handling.", payment.getId());
             return;
         }
-        Payment paymentToUpdate = paymentOpt.get();
 
         if (paymentToUpdate.getStatus() != PaymentStatus.PROCESSING) {
-            log.warn("Attempted to update payment ID {} from MNO callback, but status was already {}. Ignoring update.",
+            log.warn("Attempted to update payment ID {} from MNO completion, but status was already {}. Ignoring update.",
                     paymentToUpdate.getId(), paymentToUpdate.getStatus());
             return;
         }
@@ -134,27 +156,25 @@ public class PaymentService {
         }
     }
 
-    @Transactional
     protected void handleMnoProcessingFailure(UUID paymentId, String reason) {
-        Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
-        if (paymentOpt.isEmpty()) {
+        Payment paymentToUpdate = paymentRepository.findById(paymentId)
+                .orElse(null);
+
+        if (paymentToUpdate == null) {
             log.error("Payment record not found for ID {} during MNO failure handling.", paymentId);
             return;
         }
-        Payment payment = paymentOpt.get();
 
-        // Avoid overwriting a final state
-        if (payment.getStatus() != PaymentStatus.PROCESSING) {
-            log.warn("Attempted to mark payment ID {} as FAILED from MNO callback, but status was already {}. Ignoring update.",
-                    payment.getId(), payment.getStatus());
+        if (paymentToUpdate.getStatus() != PaymentStatus.PROCESSING) {
+            log.warn("Attempted to flag payment ID {} as FAILED from MNO failure handler, but status was already {}. Ignoring update.",
+                    paymentToUpdate.getId(), paymentToUpdate.getStatus());
             return;
         }
 
-        payment.setStatus(PaymentStatus.FAILED);
-        payment.setFailureReason(reason);
-        Payment finalPayment = paymentRepository.save(payment);
+        paymentToUpdate.setStatus(PaymentStatus.FAILED);
+        paymentToUpdate.setFailureReason(reason);
+        Payment finalPayment = paymentRepository.save(paymentToUpdate);
         log.info("Payment status updated to FAILED due to processing error for ID: {}", finalPayment.getId());
-
         smsService.sendFailureNotification(finalPayment);
     }
 }
