@@ -42,6 +42,7 @@ dependencies {
 //	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 	runtimeOnly("com.h2database:h2")
 	annotationProcessor("org.projectlombok:lombok")
+	testImplementation("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.boot:spring-boot-testcontainers")
 	testImplementation("org.springframework.amqp:spring-rabbit-test")
