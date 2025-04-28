@@ -32,11 +32,7 @@ public class JWTAuthConverter implements Converter<Jwt, AbstractAuthenticationTo
                 roleAuthorities.stream()
         ).collect(Collectors.toSet());
 
-        String principalClaimName = "sub";
-        String principalName = jwt.getClaimAsString(principalClaimName);
-        if (principalName == null) {
-            principalName = jwt.getSubject();
-        }
+        String principalName = jwt.getSubject();
 
         return new JwtAuthenticationToken(jwt, authorities, principalName);
     }
