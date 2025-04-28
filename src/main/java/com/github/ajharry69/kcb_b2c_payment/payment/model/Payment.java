@@ -15,12 +15,10 @@ import java.util.UUID;
 @Entity
 @Table(name = "payments")
 @EntityListeners(AuditingEntityListener.class)
-@Getter // Generates getters for all fields
-@Setter // Generates setters for all non-final fields
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-//@EqualsAndHashCode(of = "transactionId") // Implement equals/hashCode based on transactionId (good business key)
-@ToString
 @Builder
 public class Payment {
 

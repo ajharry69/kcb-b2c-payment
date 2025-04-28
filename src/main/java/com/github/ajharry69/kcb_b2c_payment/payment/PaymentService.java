@@ -106,10 +106,10 @@ public class PaymentService {
     }
 
     @Transactional
-    protected void handleMnoProcessingCompletion(Payment updatedPayment) {
-        Optional<Payment> paymentOpt = paymentRepository.findById(updatedPayment.getId());
+    protected void handleMnoProcessingCompletion(Payment payment) {
+        Optional<Payment> paymentOpt = paymentRepository.findById(payment.getId());
         if (paymentOpt.isEmpty()) {
-            log.error("Payment record not found for ID {} during MNO completion handling.", updatedPayment.getId());
+            log.error("Payment record not found for ID {} during MNO completion handling.", payment.getId());
             return;
         }
         Payment paymentToUpdate = paymentOpt.get();
@@ -120,9 +120,9 @@ public class PaymentService {
             return;
         }
 
-        paymentToUpdate.setStatus(updatedPayment.getStatus());
-        paymentToUpdate.setMnoReference(updatedPayment.getMnoReference());
-        paymentToUpdate.setFailureReason(updatedPayment.getFailureReason());
+        paymentToUpdate.setStatus(payment.getStatus());
+        paymentToUpdate.setMnoReference(payment.getMnoReference());
+        paymentToUpdate.setFailureReason(payment.getFailureReason());
 
         Payment finalPayment = paymentRepository.save(paymentToUpdate);
         log.info("Final payment status updated to {} for ID: {}", finalPayment.getStatus(), finalPayment.getId());
@@ -141,18 +141,18 @@ public class PaymentService {
             log.error("Payment record not found for ID {} during MNO failure handling.", paymentId);
             return;
         }
-        Payment paymentToUpdate = paymentOpt.get();
+        Payment payment = paymentOpt.get();
 
         // Avoid overwriting a final state
-        if (paymentToUpdate.getStatus() != PaymentStatus.PROCESSING) {
+        if (payment.getStatus() != PaymentStatus.PROCESSING) {
             log.warn("Attempted to mark payment ID {} as FAILED from MNO callback, but status was already {}. Ignoring update.",
-                    paymentToUpdate.getId(), paymentToUpdate.getStatus());
+                    payment.getId(), payment.getStatus());
             return;
         }
 
-        paymentToUpdate.setStatus(PaymentStatus.FAILED);
-        paymentToUpdate.setFailureReason(reason);
-        Payment finalPayment = paymentRepository.save(paymentToUpdate);
+        payment.setStatus(PaymentStatus.FAILED);
+        payment.setFailureReason(reason);
+        Payment finalPayment = paymentRepository.save(payment);
         log.info("Payment status updated to FAILED due to processing error for ID: {}", finalPayment.getId());
 
         smsService.sendFailureNotification(finalPayment);

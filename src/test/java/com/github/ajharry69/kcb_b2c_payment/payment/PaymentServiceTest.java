@@ -3,12 +3,12 @@ package com.github.ajharry69.kcb_b2c_payment.payment;
 import com.github.ajharry69.kcb_b2c_payment.exceptions.DuplicateTransactionException;
 import com.github.ajharry69.kcb_b2c_payment.exceptions.MMOServiceException;
 import com.github.ajharry69.kcb_b2c_payment.exceptions.PaymentNotFoundException;
+import com.github.ajharry69.kcb_b2c_payment.mmo.MobileMoneyService;
+import com.github.ajharry69.kcb_b2c_payment.notification.SmsService;
 import com.github.ajharry69.kcb_b2c_payment.payment.dto.PaymentRequest;
 import com.github.ajharry69.kcb_b2c_payment.payment.dto.PaymentResponse;
 import com.github.ajharry69.kcb_b2c_payment.payment.model.Payment;
 import com.github.ajharry69.kcb_b2c_payment.payment.model.PaymentStatus;
-import com.github.ajharry69.kcb_b2c_payment.mmo.MobileMoneyService;
-import com.github.ajharry69.kcb_b2c_payment.notification.SmsService;
 import com.github.ajharry69.kcb_b2c_payment.payment.utils.PaymentMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,11 +54,10 @@ class PaymentServiceTest {
     private Payment failedPaymentEntity;
     private PaymentResponse successfulResponse;
     private PaymentResponse failedResponse;
-    private UUID paymentId;
+    private final UUID paymentId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        paymentId = UUID.randomUUID();
         validRequest = new PaymentRequest("TXN123", "+254712345678", new BigDecimal("100.00"), "KES");
 
         pendingPaymentEntity = Payment.builder()
@@ -142,11 +141,17 @@ class PaymentServiceTest {
         @Test
         @DisplayName("Should initiate payment successfully and return PROCESSING status")
         void initiatePayment_Success() {
-            when(paymentRepository.findByTransactionId(validRequest.transactionId())).thenReturn(Optional.empty());
+            when(paymentRepository.findByTransactionId(validRequest.transactionId()))
+                    .thenReturn(Optional.empty());
             CompletableFuture<Payment> mnoFuture = CompletableFuture.completedFuture(successfulPaymentEntity);
-            when(mobileMoneyService.processB2CPayment(any(Payment.class))).thenReturn(mnoFuture);
-            when(paymentRepository.saveAndFlush(any(Payment.class))).thenReturn(pendingPaymentEntity);
-            when(paymentRepository.save(any(Payment.class))).thenReturn(processingPaymentEntity);
+            when(mobileMoneyService.processB2CPayment(any(Payment.class)))
+                    .thenReturn(mnoFuture);
+            when(paymentRepository.findById(paymentId))
+                    .thenReturn(Optional.of(processingPaymentEntity));
+            when(paymentRepository.saveAndFlush(any(Payment.class)))
+                    .thenReturn(pendingPaymentEntity);
+            when(paymentRepository.save(any(Payment.class)))
+                    .thenReturn(processingPaymentEntity);
 
             PaymentResponse response = paymentService.initiatePayment(validRequest);
 
@@ -160,9 +165,6 @@ class PaymentServiceTest {
             verify(paymentRepository).saveAndFlush(any(Payment.class));
             verify(paymentRepository, times(2)).save(any(Payment.class));
             verify(mobileMoneyService).processB2CPayment(any(Payment.class));
-
-            when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(processingPaymentEntity));
-            mnoFuture.join();
             verify(smsService).sendSuccessNotification(any(Payment.class));
             verify(smsService, never()).sendFailureNotification(any(Payment.class));
         }
@@ -250,26 +252,30 @@ class PaymentServiceTest {
             CompletableFuture<Payment> mnoFuture = CompletableFuture.completedFuture(failedPaymentEntity);
             when(mobileMoneyService.processB2CPayment(any(Payment.class)))
                     .thenReturn(mnoFuture);
+            when(paymentRepository.findById(paymentId))
+                    .thenReturn(Optional.of(processingPaymentEntity));
             when(paymentRepository.saveAndFlush(any(Payment.class)))
                     .thenReturn(pendingPaymentEntity);
             when(paymentRepository.save(any(Payment.class)))
-                    .thenReturn(processingPaymentEntity)
-                    .thenReturn(failedPaymentEntity);
+                    .thenReturn(processingPaymentEntity);
 
             PaymentResponse response = paymentService.initiatePayment(validRequest);
 
             assertThat(response).isNotNull();
             assertThat(response.status()).isEqualTo(PaymentStatus.PROCESSING);
 
-            verify(paymentRepository).findByTransactionId(validRequest.transactionId());
-            verify(paymentRepository).saveAndFlush(any(Payment.class));
-            verify(paymentRepository, times(2)).save(any(Payment.class));
-            verify(mobileMoneyService).processB2CPayment(any(Payment.class));
-
-            when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(processingPaymentEntity));
-            mnoFuture.join();
-            verify(smsService, never()).sendSuccessNotification(any(Payment.class));
-            verify(smsService).sendFailureNotification(any(Payment.class));
+            verify(paymentRepository)
+                    .findByTransactionId(validRequest.transactionId());
+            verify(paymentRepository)
+                    .saveAndFlush(any(Payment.class));
+            verify(paymentRepository, times(2))
+                    .save(any(Payment.class));
+            verify(mobileMoneyService)
+                    .processB2CPayment(any(Payment.class));
+            verify(smsService, never())
+                    .sendSuccessNotification(any(Payment.class));
+            verify(smsService)
+                    .sendFailureNotification(any(Payment.class));
         }
 
         @Test
@@ -277,10 +283,13 @@ class PaymentServiceTest {
         void initiatePayment_MnoSubmissionError() {
             when(paymentRepository.findByTransactionId(validRequest.transactionId()))
                     .thenReturn(Optional.empty());
-            RuntimeException submissionException = new RuntimeException("Network timeout connecting to MNO");
-            when(mobileMoneyService.processB2CPayment(any(Payment.class))).thenThrow(submissionException);
-            when(paymentRepository.saveAndFlush(any(Payment.class))).thenReturn(pendingPaymentEntity);
-            when(paymentRepository.save(any(Payment.class))).thenReturn(processingPaymentEntity)
+            var submissionException = new RuntimeException("Network timeout connecting to MNO");
+            when(mobileMoneyService.processB2CPayment(any(Payment.class)))
+                    .thenThrow(submissionException);
+            when(paymentRepository.saveAndFlush(any(Payment.class)))
+                    .thenReturn(pendingPaymentEntity);
+            when(paymentRepository.save(any(Payment.class)))
+                    .thenReturn(processingPaymentEntity)
                     .thenReturn(failedPaymentEntity);
 
             assertThatThrownBy(() -> paymentService.initiatePayment(validRequest))
@@ -302,12 +311,16 @@ class PaymentServiceTest {
         void initiatePayment_MnoFutureException() {
             when(paymentRepository.findByTransactionId(validRequest.transactionId()))
                     .thenReturn(Optional.empty());
+            when(paymentRepository.findById(paymentId))
+                    .thenReturn(Optional.of(processingPaymentEntity));
             CompletableFuture<Payment> mnoFuture = new CompletableFuture<>();
             mnoFuture.completeExceptionally(new CompletionException("Internal MNO Error", new RuntimeException("Simulated cause")));
-            when(mobileMoneyService.processB2CPayment(any(Payment.class))).thenReturn(mnoFuture);
-            when(paymentRepository.saveAndFlush(any(Payment.class))).thenReturn(pendingPaymentEntity);
-            when(paymentRepository.save(any(Payment.class))).thenReturn(processingPaymentEntity)
-                    .thenReturn(failedPaymentEntity);
+            when(mobileMoneyService.processB2CPayment(any(Payment.class)))
+                    .thenReturn(mnoFuture);
+            when(paymentRepository.saveAndFlush(any(Payment.class)))
+                    .thenReturn(pendingPaymentEntity);
+            when(paymentRepository.save(any(Payment.class)))
+                    .thenReturn(processingPaymentEntity);
 
             PaymentResponse response = paymentService.initiatePayment(validRequest);
 
@@ -319,7 +332,6 @@ class PaymentServiceTest {
             verify(paymentRepository, times(2)).save(any(Payment.class));
             verify(mobileMoneyService).processB2CPayment(any(Payment.class));
 
-            when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(processingPaymentEntity));
             assertThatThrownBy(mnoFuture::join).isInstanceOf(CompletionException.class);
 
             ArgumentCaptor<Payment> smsPaymentCaptor = ArgumentCaptor.forClass(Payment.class);
