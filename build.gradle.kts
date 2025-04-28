@@ -51,6 +51,7 @@ dependencies {
 	testImplementation("org.springframework.security:spring-security-test")
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:rabbitmq")
+	testImplementation("io.rest-assured:rest-assured:5.3.2")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
